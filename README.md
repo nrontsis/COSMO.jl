@@ -136,7 +136,11 @@ A set of benchmark problems with conic constraints is available here:
 
 ## Interface
 
+<<<<<<< HEAD
 ### Settings ⚙️
+=======
+### Settings
+>>>>>>> Chordal decomposition passes unit test
 Settings can be specified using the `COSMO.Settings` struct. The following settings are available:
 
 Argument | Description | Values (default)
@@ -212,7 +216,7 @@ If you find COSMO useful in your project, we kindly request that you cite the fo
   title         = {{COSMO}: A conic operator splitting method for convex conic problems},
   journal       = {arXiv e-prints},
   year          = {2019},
-  month         = jan, 
+  month         = jan,
   archiveprefix = {arXiv},
   eprint        = {1901.10887},
   keywords      = {Mathematics - Optimization and Control},
@@ -222,21 +226,21 @@ If you find COSMO useful in your project, we kindly request that you cite the fo
 ```
 A preprint can be downloaded [here](https://arxiv.org/abs/1901.10887).
 
-## Credits 
+## Credits
 The following people are involved in the development of COSMO:
 - Michael Garstka (main development)
 - Nikitas Rontsis (algorithm performance)
 - Paul Goulart (code architecture, maths and algorithms)
 - Mark Cannon (maths and algorithms)
- 
+
 \*all contributors are affiliated with the University of Oxford.
- 
+
 To contact us, send an email :email: to [Michael Garstka](mailto:michael.garstka@eng.ox.ac.uk) :rocket:!
 
 ## Contributing
 - Contributions are always welcome. Our style guide can be found [here](https://github.com/oxfordcontrol/COSMO.jl/wiki/Code-Style-Guide).
 - Current issues, tasks and future ideas are listed in [Issues](https://github.com/oxfordcontrol/ossdp/issues):exclamation:. Please report any issues or bugs that you encounter.
-- As an open source project we are also interested in any projects and applications that use COSMO. Please let us know! 
+- As an open source project we are also interested in any projects and applications that use COSMO. Please let us know!
 
 ## Licence
 This project is licensed under the Apache License - see the [LICENSE.md](LICENSE.md) file for details.

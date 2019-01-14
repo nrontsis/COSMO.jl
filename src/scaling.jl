@@ -109,6 +109,7 @@ function scale_ruiz!(ws::COSMO.Workspace)
 	ws.sm.cinv[]     = 1. ./ c
 
 	# scale the potentially warm started variables
+	@show(size(ws.vars.x), size(ws.sm.Dinv))
 	ws.vars.x[:] = ws.sm.Dinv * ws.vars.x
 	ws.vars.μ[:] = ws.sm.Einv * ws.vars.μ
 	ws.vars.s.data[:] = ws.sm.Einv * ws.vars.s.data

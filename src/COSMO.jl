@@ -1,9 +1,8 @@
-__precompile__()
+#__precompile__()
 module COSMO
 
 using SparseArrays, LinearAlgebra, SuiteSparse
 
-#export MathOptInterfaceCOSMO
 export  assemble!, optimize!, warmStart!, reset!
 
 const DefaultFloat = Float64
@@ -23,6 +22,9 @@ include("./kkt.jl")                 # TODO: unmodified - revisit.  Add lin solve
 include("./infeasibility.jl")       # TODO: stylistic fixes needed
 include("./printing.jl")            # TODO: unmodified - revisit
 include("./setup.jl")               # TODO: unmodified - revisit (short - consolidate?)
+include("./graphs.jl")
+include("./trees.jl")
+include("./chordal_decomposition.jl")
 include("./solver.jl")              # TODO: unmodified - revisit
 include("./interface.jl")           # TODO: unmodified - revisit
 include("./MOIWrapper.jl")

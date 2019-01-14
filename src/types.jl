@@ -12,7 +12,7 @@ mutable struct ResultTimes{T <: AbstractFloat}
 	post_time::T
 end
 
-ResultTimes{T}() where{T} = ResultTimes{T}(0., 0., 0., 0., 0., 0., 0.)
+ResultTimes{T}() where{T} = ResultTimes{T}(0., 0., 0., 0., 0., 0., 0., false)
 ResultTimes(T::Type = DefaultFloat) = ResultTimes{T}()
 
 struct ResultInfo{T <: AbstractFloat}
@@ -61,7 +61,7 @@ end
 
 function Base.show(io::IO, obj::Result)
 	print(io,">>> COSMO - Results\nStatus: $(obj.status)\nIterations: $(obj.iter)\nOptimal Objective: $(round.(obj.obj_val, digits = 2))\nRuntime: $(round.(obj.times.solver_time * 1000, digits = 2))ms\nSetup Time: $(round.(obj.times.setup_time * 1000, digits = 2))ms\n")
-	obj.times.iter_time != NaN && print("Avg Iter Time: $(round.((obj.times.iter_time / obj.iter) * 1000, digits = 2))ms")
+	obj.times.iter_time != 0 && print("Avg Iter Time: $(round.((obj.times.iter_time / obj.iter) * 1000, digits = 4))ms")
 end
 
 struct Info{T <: AbstractFloat}
@@ -132,6 +132,29 @@ end
 ProblemData(args...) = ProblemData{DefaultFloat}(args...)
 
 # -------------------------------------
+# Chordal Decomposition Information
+# -------------------------------------
+mutable struct ChordalInfo{T <: Real}
+  originalM::Int64
+  originalN::Int64
+  originalC::CompositeConvexSet{T}
+  H::SparseMatrixCSC{T}
+
+  function ChordalInfo{T}(problem::COSMO.ProblemData{T}) where {T}
+    originalM = problem.model_size[1]
+    originalN = problem.model_size[2]
+    originalC = deepcopy(problem.C)
+    return new(originalM, originalN, originalC, spzeros(1, 1))
+  end
+
+	function ChordalInfo{T}() where{T}
+		C = COSMO.CompositeConvexSet([COSMO.ZeroSet{T}(1)])
+		return new(0, 0, C, spzeros(1, 1))
+	end
+
+end
+
+# -------------------------------------
 # Structure of internal iterate variables
 # -------------------------------------
 
@@ -164,6 +187,7 @@ mutable struct Workspace{T}
 	p::ProblemData{T}
 	settings::Settings
 	sm::ScaleMatrices{T}
+	ci::ChordalInfo{T}
 	vars::Variables{T}
 	ρ::T
 	ρvec::Vector{T}
@@ -177,7 +201,8 @@ mutable struct Workspace{T}
 		p = ProblemData{T}()
 		sm = ScaleMatrices{T}()
 		vars = Variables{T}(1, 1, p.C)
-		return new(p, Settings(), sm, vars, zero(T), T[], ldlt(sparse(1.0I, 1, 1)), spzeros(0, 0), Flags(), Info([zero(T)]), ResultTimes())
+		ci = ChordalInfo{T}()
+		return new(p, Settings(), sm, ci, vars, zero(T), T[], ldlt(sparse(1.0I, 1, 1)), spzeros(0, 0), Flags(), Info([zero(T)]), ResultTimes())
 	end
 end
 Workspace(args...) = Workspace{DefaultFloat}(args...)
