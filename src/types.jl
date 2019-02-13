@@ -135,14 +135,15 @@ ProblemData(args...) = ProblemData{DefaultFloat}(args...)
 # Struct to hold clique and sparsity data for a constraint
 # ---------------------------
 mutable struct SparsityPattern
-  g::Graph
   sntree::SuperNodeTree
+  ordering::Array{Int64}
+  reverse_ordering::Array{Int64}
 
   # constructor for sparsity pattern
   function SparsityPattern(rows::Array{Int64,1}, N::Int64, NONZERO_FLAG::Bool)
     g = Graph(rows, N, NONZERO_FLAG)
     sntree = SuperNodeTree(g)
-    return new(g, sntree)
+    return new(sntree, g.ordering, g.reverse_ordering)
   end
 
 end

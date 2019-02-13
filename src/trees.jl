@@ -25,7 +25,7 @@
 #     root::Int64
 #     nodes::Array{Node}
 #     order::Array{Int64}
-#     reverseOrder::Array{Int64}
+#     reverse_ordering::Array{Int64}
 #     #constructor
 #     function Tree()
 #         new(0,Int64[],Int64[],Int64[])
@@ -34,7 +34,7 @@
 
 # # Redefinition of the show function that fires when the object is called
 # function Base.show(io::IO, obj::Tree)
-# println(io,"\nTree - Nodes:\nRoot: $(obj.root)\nOrder: $(obj.order)\n reverseOrder: $(obj.reverseOrder)")
+# println(io,"\nTree - Nodes:\nRoot: $(obj.root)\nOrder: $(obj.order)\n reverse_ordering: $(obj.reverse_ordering)")
 # for node in obj.nodes
 #     println("Node - Value_top: $(node.value_top), Value_btm: $(node.value_btm), Degree: $(node.degree), Parent: $(node.parent), Children: $(node.children), inSuperNode: $(node.inSuperNode)\n")
 # end
@@ -95,7 +95,7 @@ N = length(g.adjacencyList)
 par = zeros(Int64,N)
 ancestor = zeros(Int64,N)
 
-elemSequence = g.reverseOrder[collect(1:N)]
+elemSequence = g.reverse_ordering[collect(1:N)]
 for iii in elemSequence
     for vk in g.adjacencyList[iii]
         if g.ordering[vk] < g.ordering[iii]
@@ -332,7 +332,7 @@ function findParentDirect(g::Graph,v::Int64)
       neighbors = g.adjacencyList[v]
       higherOrders = filter(x-> x > order, g.ordering[neighbors])
       if length(higherOrders) > 0
-        return g.reverseOrder[minimum(higherOrders)]
+        return g.reverse_ordering[minimum(higherOrders)]
       else
         return 0
       end
@@ -370,7 +370,7 @@ end
 # function createSupernodeEliminationTree(t::Tree,g::Graph)
 #     superTree = Tree()
 #     # go through nodes of tree in topological order
-#     for nodeInd in g.reverseOrder
+#     for nodeInd in g.reverse_ordering
 #         node = t.nodes[nodeInd]
 #         # check if node is representative node (lowest vertex in clique)
 #         child = hasLowerDegChild(node,t)
@@ -446,7 +446,7 @@ end
 #     end
 
 #     # Order the supernodes in descending order for algorithm to work
-#     cliqueTree.reverseOrder = collect(1:numberOfCliques(cliqueTree))
+#     cliqueTree.reverse_ordering = collect(1:numberOfCliques(cliqueTree))
 #     cliqueTree.order = collect(numberOfCliques(cliqueTree):-1:1)
 
 #     return cliqueTree

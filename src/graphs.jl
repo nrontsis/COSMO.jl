@@ -2,7 +2,7 @@
 mutable struct Graph
 adjacencyList::Array{Array{Int64,1}}
 ordering::Array{Int64} # σ(v) = i
-reverseOrder::Array{Int64} #σ^(-1)(i)
+reverse_ordering::Array{Int64} #σ^(-1)(i)
 
 # constructor for sparse input matrix
 # function Graph(A::Union{SparseMatrixCSC{Int64,Int64},SparseMatrixCSC{Float64,Int64}})
@@ -95,7 +95,7 @@ end
 
 # deepcopy function for Graph struct
 function Base.deepcopy(g::Graph)
-return Graph(deepcopy(g.adjacencyList), deepcopy(g.ordering), deepcopy(g.reverseOrder))
+return Graph(deepcopy(g.adjacencyList), deepcopy(g.ordering), deepcopy(g.reverse_ordering))
 end
 
 # Redefinition of the show function that fires when the object is called
@@ -108,7 +108,7 @@ if length(obj.adjacencyList) <= 15
     println(io,"Vertex $(i): $(obj.adjacencyList[i])")
   end
   println(io,"\nOrdering σ(v) = i: $(obj.ordering)")
-  println(io,"Reverse Ordering σ^-1(i) = v: $(obj.reverseOrder)\n")
+  println(io,"Reverse Ordering σ^-1(i) = v: $(obj.reverse_ordering)\n")
 end
 println(io,"\nNumber of vertices: $(length(obj.adjacencyList))\nNumber of edges: $(sum(map(x->length(x),obj.adjacencyList))/2)")
 end
@@ -176,12 +176,12 @@ for i = N:-1:1
 end
 # update ordering of graph
 g.ordering = perfectOrdering
-reverseOrder = zeros(size(perfectOrdering,1))
+reverse_ordering = zeros(size(perfectOrdering,1))
 # also compute reverse order σ^-1(v)
 for i = 1:N
-  reverseOrder[Int64(perfectOrdering[i])] = i
+  reverse_ordering[Int64(perfectOrdering[i])] = i
 end
-g.reverseOrder = reverseOrder
+g.reverse_ordering = reverse_ordering
 return nothing
 end
 
@@ -228,11 +228,11 @@ end
 # update ordering of graph
 g.ordering = perfectOrdering
 # also compute reverse order σ^-1(v)
-reverseOrder = zeros(size(perfectOrdering,1))
+reverse_ordering = zeros(size(perfectOrdering,1))
 for i = 1:N
-  reverseOrder[Int64(perfectOrdering[i])] = i
+  reverse_ordering[Int64(perfectOrdering[i])] = i
 end
-g.reverseOrder = reverseOrder
+g.reverse_ordering = reverse_ordering
 
 # TODO: Do other algorithms break if the adjacencylist is not ordered anymore? -> if so: sort adjacencylist
 # make graph chordal by adding the new edges of F to E
@@ -365,8 +365,8 @@ end
 # start with lowest-order vertex v, findall lowest neighbor u of v with higher order. Then verify that w is adjacent to all higher order neighbors of v
 # Algorithm has running time O(m+n)
 function isPerfectOrdering(g::Graph)
-(length(g.reverseOrder) == 0 || length(g.reverseOrder) == 0) && error("Please provide graph with order and reverse order.")
-for v in g.reverseOrder
+(length(g.reverse_ordering) == 0 || length(g.reverse_ordering) == 0) && error("Please provide graph with order and reverse order.")
+for v in g.reverse_ordering
   higherNeighbors = findHigherNeighbors(g,v)
   if size(higherNeighbors,1) > 1
     u = higherNeighbors[indmin(g.ordering[higherNeighbors])]
