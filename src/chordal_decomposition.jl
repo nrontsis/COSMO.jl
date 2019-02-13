@@ -1,18 +1,4 @@
-# ---------------------------
-# STRUCTS
-# ---------------------------
-mutable struct SparsityPattern
-  g::Graph
-  sntree::SuperNodeTree
 
-  # constructor for sparsity pattern
-  function SparsityPattern(rows::Array{Int64,1}, N::Int64, NONZERO_FLAG::Bool)
-    g = Graph(rows, N, NONZERO_FLAG)
-    sntree = SuperNodeTree(g)
-    return new(g, sntree)
-  end
-
-end
 
 # ---------------------------
 # FUNCTIONS
@@ -50,43 +36,26 @@ function chordal_decomposition!(ws::COSMO.Workspace)
     settings.decompose = false
     return nothing
   end
-  # Store the indices of the psd cones in psd_cones_ind
-  indices = get_set_indices(problem.C.sets)
-  psd_cones_ind = indices[findall(x -> typeof(x) == PsdCone{Float64}, problem.C.sets)]
 
-  # find sparsity pattern for each cone
-  sp_arr = Array{COSMO.SparsityPattern}(undef, length(psd_cones_ind))
+  find_sparsity_patterns!(ws)
 
-  # find sparsity pattern, graphs, and clique sets for each cone
-  for (iii,ind) in enumerate(psd_cones_ind)
-    csp = find_aggregate_sparsity(problem.A, problem.b, ind)
-    cDim = Int(sqrt(ind.stop - ind.start + 1))
-    sp_arr[iii] = COSMO.SparsityPattern(csp, cDim, true)
-  end
+  # find transformation matrix H and new composite convex set
+  find_decomposition_matrix!(ws)
 
-  # find transformation matrix H and store it
-  H, decomposed_psd_cones = find_stacking_matrix(psd_cones_ind, sp_arr, problem.model_size[1])
-  ws.ci.H = H
-
-  # augment the system
-  m,n = size(problem.A)
-  mH,nH = size(H)
-  @show(m,n,mH,nH)
-  problem.P = blockdiag(problem.P, spzeros(nH, nH))
-  problem.q = vec([problem.q; zeros(nH)])
-  problem.A = [problem.A H; spzeros(nH, n) -sparse(1.0I, nH, nH)]
-  problem.b = vec([problem.b; zeros(nH)])
-  problem.model_size[1] = size(problem.A, 1)
-  problem.model_size[2] = size(problem.A, 2)
-
-  filtered_cones = filter(x -> typeof(x) != PsdCone{Float64}, problem.C.sets)
-  new_composite_convex_set = Array{AbstractConvexSet{Float64}}([COSMO.ZeroSet{Float64}(mH); filtered_cones; decomposed_psd_cones])
-  problem.C = COSMO.CompositeConvexSet(new_composite_convex_set)
-
-  # increase the variable dimension
-  ws.vars = Variables{Float64}(problem.model_size[1], problem.model_size[2], problem.C)
+  # augment the original system
+  augment_system!(ws)
 
   nothing
+end
+
+# analyses PSD cone constraints for chordal sparsity pattern
+function find_sparsity_patterns!(ws)
+  # find sparsity pattern, graphs, and clique sets for each cone
+  for (iii, ind) in enumerate(ws.ci.psd_cones_ind)
+    csp = find_aggregate_sparsity(ws.p.A, ws.p.b, ind)
+    cDim = Int(sqrt(ind.stop - ind.start + 1))
+    ws.ci.sp_arr[iii] = COSMO.SparsityPattern(csp, cDim, true)
+  end
 end
 
 # find the zero rows of a sparse matrix a
@@ -104,7 +73,7 @@ function nz_rows(a::SparseMatrixCSC, ind::UnitRange{Int64}, DROP_ZEROS_FLAG::Boo
     active = falses(length(ind))
     for r in a.rowval
       if in(r, ind)
-        active[r] = true
+        active[r - ind.start + 1] = true
       end
     end
     return findall(active)
@@ -156,62 +125,125 @@ function vec_to_mat_ind(ind::Int64, n::Int64)
   return i, j
 end
 
+# Converts the matrix element (i,j) of A ∈ m x n into the corresponding row value of v = vec(A)
+function mat_to_vec_ind(i::Int64, j::Int64, m::Int64)
+  (i > m || i <= 0 || j <= 0) && throw(BoundsError("Indices outside matrix bounds."))
+  return (j - 1) * m + i
+end
 
-# function getClique(cs::CliqueSet,ind::Int64)
-#   len = length(cs.cliqueInd)
-#   ind > len && error("Clique index ind=$(ind) is higher than number of cliques in the provided set:$(len).")
-#   ind < len ? (c = cs.cliques[cs.cliqueInd[ind]:cs.cliqueInd[ind+1]-1]) : (c = cs.cliques[cs.cliqueInd[ind]:end])
-#   return c
-# end
 
-# function finds the transformation matrix H to decompose the vector s into its parts and stacks them into sbar, also returns  Ks
-function find_stacking_matrix(psd_cones_ind::Array{UnitRange{Int64},1}, sp_arr::Array{SparsityPattern,1}, m::Int64)
+# function finds the transformation matrix H to decompose the vector s into its parts and stacks them into sbar
+function find_decomposition_matrix!(ws)
 
-  num_cones = length(psd_cones_ind)
-  num_cones != length(sp_arr) && error("Number of psd cones and number of clique sets don't match.")
+  # allocate H and new decomposed cones
+  m, n = COSMO.find_H_dimension(ws.ci)
+  ws.ci.H = spzeros(m, n)
 
-  stacked_sizes = zeros(Int64, num_cones)
-  for iii=1:num_cones
-    stacked_sizes[iii] = sum(sp_arr[iii].sntree.nBlk)
+  # find number of decomposed and total sets and allocate structure for new compositve convex set
+  num_total, num_new_psd_cones = COSMO.num_cone_decomposition(ws)
+  # decomposed_psd_cones = Array{COSMO.PsdCone}(undef, 0)
+  C_new = Array{COSMO.AbstractConvexSet{Float64}}(undef, num_total)
+  C_new[1] = COSMO.ZeroSet{Float64}(m)
+
+  # loop over all convex sets and fill H and composite convex set accordingly
+  row = 1
+  col = 1
+  sp_ind = 1
+  set_ind = 2
+  for (kkk, C) in enumerate(ws.p.C.sets)
+    set_ind, sp_ind, col = COSMO.decompose!(ws.ci.H, C_new, set_ind, C, row, col, ws.ci.sp_arr, sp_ind)
+    row += C.dim
+  end
+  ws.p.C = COSMO.CompositeConvexSet(C_new)
+end
+
+function decompose!(H::SparseMatrixCSC, C_new, set_ind::Int64, C::COSMO.AbstractConvexSet, row::Int64, col::Int64, sp_arr::Array{SparsityPattern}, sp_ind::Int64)
+  H[row:row + C.dim - 1, col:col + C.dim - 1] = sparse(1.0I, C.dim, C.dim)
+  C_new[set_ind] = C
+
+  return set_ind + 1, sp_ind, col + C.dim
+end
+
+function decompose!(H::SparseMatrixCSC, C_new, set_ind::Int64,  C::COSMO.PsdCone{Float64}, row_start::Int64, col_start::Int64, sp_arr::Array{SparsityPattern}, sp_ind::Int64)
+  sntree = sp_arr[sp_ind].sntree
+  # original matrix size
+  original_size = C.sqrt_dim
+
+  for iii = 1:num_cliques(sntree)
+    # new stacked size
+    block_size = Int(sqrt(sntree.nBlk[iii]))
+
+    c = COSMO.get_clique(sntree, iii)
+    sort!(c)
+    col_start = COSMO.add_subblock_map!(H, c, block_size, original_size, row_start, col_start)
+
+    # create and add new cone for subblock
+    C_new[set_ind] = COSMO.PsdCone(block_size^2)
+    set_ind += 1
+  end
+  return set_ind, sp_ind + 1, col_start
+end
+
+# fills the corresponding entries of H for clique c
+function add_subblock_map!(H::SparseMatrixCSC, clique_vertices::Array{Int64}, block_size::Int64, original_size::Int64, row_shift::Int64, col_shift::Int64)
+  num = 1
+  for (iii, vj) in enumerate(clique_vertices)
+    for (jjj, vi) in enumerate(clique_vertices)
+      row = mat_to_vec_ind(vi, vj, original_size)
+      H[row_shift + row - 1, col_shift + num - 1] = 1.
+      num += 1
+    end
+  end
+  return (col_shift + block_size^2)::Int64
+end
+
+function find_H_dimension(ci)
+  m = ci.originalM
+  num_decomp_cones = length(ci.psd_cones_ind)
+  stacked_sizes = zeros(Int64, num_decomp_cones)
+  for iii = 1:num_decomp_cones
+    stacked_sizes[iii] = sum(ci.sp_arr[iii].sntree.nBlk)
   end
 
-  bK = m - sum(map(x -> length(x), psd_cones_ind))
+  num_other_rows = ci.originalM - sum(map(x -> length(x), ci.psd_cones_ind))
 
   # length of stacked vector sbar
-  n = bK + sum(stacked_sizes)
-
-  H = spzeros(m, n)
-  H[1:bK,1:bK] = sparse(1.0I, bK, bK)
-  bK += 1
-  b = bK
-  decomposed_psd_cones = Array{COSMO.PsdCone}(undef, 0)
-  # loop over all supernode trees that hold the clique information for each decomposed cone
-  for kkk = 1:length(sp_arr)
-    sntree = sp_arr[kkk].sntree
-    mH = Int64
-    for iii=1:getNumCliques(sntree)
-      # new stacked size
-      mk = Int(sqrt(sntree.nBlk[iii]))
-      # original size
-      nk = Int(sqrt(length(psd_cones_ind[kkk])))
-      Ek = zeros(mk, nk)
-      c = get_clique(sntree, iii)
-      sort!(c)
-      for (jjj, v) in enumerate(c)
-        Ek[jjj, v] = 1
-      end
-      Hkt = (kron(Ek, Ek))'
-      mH, nH = size(Hkt)
-      H[b:b + mH - 1, bK:bK + nH - 1] = Hkt
-      # create new cone and push to decomposedCone Array
-      push!(decomposed_psd_cones, COSMO.PsdCone(nH))
-      bK += nH
-    end
-    b += mH
-  end
-  return H, decomposed_psd_cones
-
+  n = num_other_rows + sum(stacked_sizes)
+  return m, n
 end
+
+function num_cone_decomposition(ws)
+  num_sets = length(ws.p.C.sets)
+  num_old_psd_cones = length(ws.ci.psd_cones_ind)
+  num_new_psd_cones = 0
+  for (iii, sp) in enumerate(ws.ci.sp_arr)
+    num_new_psd_cones += COSMO.num_cliques(sp.sntree)
+  end
+  # the total number is the number of original non-psd cones + number of decomposed psd cones + 1 zeroset for the augmented system
+  num_total = num_sets - num_old_psd_cones + num_new_psd_cones + 1
+  return num_total, num_new_psd_cones
+end
+
+function augment_system!(ws)
+  _augment!(ws.p, ws.ci.H)
+
+  # increase the variable dimension
+  ws.vars = Variables{Float64}(ws.p.model_size[1], ws.p.model_size[2], ws.p.C)
+  nothing
+end
+
+function _augment!(problem, H::SparseMatrixCSC)
+  mH, nH = size(H)
+  m, n = size(problem.A)
+  problem.P = blockdiag(problem.P, spzeros(nH, nH))
+  problem.q = vec([problem.q; zeros(nH)])
+  problem.A = [problem.A H; spzeros(nH, n) -sparse(1.0I, nH, nH)]
+  problem.b = vec([problem.b; zeros(nH)])
+  problem.model_size[1] = size(problem.A, 1)
+  problem.model_size[2] = size(problem.A, 2)
+  nothing
+end
+
 
 function reverse_decomposition!(ws::COSMO.Workspace, settings::COSMO.Settings)
   mO = ws.ci.originalM

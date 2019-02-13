@@ -12,7 +12,7 @@ mutable struct ResultTimes{T <: AbstractFloat}
 	post_time::T
 end
 
-ResultTimes{T}() where{T} = ResultTimes{T}(0., 0., 0., 0., 0., 0., 0., false)
+ResultTimes{T}() where{T} = ResultTimes{T}(0., 0., 0., 0., 0., 0., 0.)
 ResultTimes(T::Type = DefaultFloat) = ResultTimes{T}()
 
 struct ResultInfo{T <: AbstractFloat}
@@ -131,6 +131,22 @@ end
 
 ProblemData(args...) = ProblemData{DefaultFloat}(args...)
 
+# ---------------------------
+# Struct to hold clique and sparsity data for a constraint
+# ---------------------------
+mutable struct SparsityPattern
+  g::Graph
+  sntree::SuperNodeTree
+
+  # constructor for sparsity pattern
+  function SparsityPattern(rows::Array{Int64,1}, N::Int64, NONZERO_FLAG::Bool)
+    g = Graph(rows, N, NONZERO_FLAG)
+    sntree = SuperNodeTree(g)
+    return new(g, sntree)
+  end
+
+end
+
 # -------------------------------------
 # Chordal Decomposition Information
 # -------------------------------------
@@ -139,17 +155,27 @@ mutable struct ChordalInfo{T <: Real}
   originalN::Int64
   originalC::CompositeConvexSet{T}
   H::SparseMatrixCSC{T}
+  sp_arr::Array{COSMO.SparsityPattern}
+  psd_cones_ind::Array{UnitRange{Int64}}
 
   function ChordalInfo{T}(problem::COSMO.ProblemData{T}) where {T}
     originalM = problem.model_size[1]
     originalN = problem.model_size[2]
     originalC = deepcopy(problem.C)
-    return new(originalM, originalN, originalC, spzeros(1, 1))
+
+    # Store the indices of the psd cones in psd_cones_ind
+    indices = get_set_indices(problem.C.sets)
+    psd_cones_ind = indices[findall(x -> typeof(x) == PsdCone{Float64}, problem.C.sets)]
+
+    # allocate sparsity pattern for each cone
+    sp_arr = Array{COSMO.SparsityPattern}(undef, length(psd_cones_ind))
+
+    return new(originalM, originalN, originalC, spzeros(1, 1), sp_arr, psd_cones_ind)
   end
 
 	function ChordalInfo{T}() where{T}
 		C = COSMO.CompositeConvexSet([COSMO.ZeroSet{T}(1)])
-		return new(0, 0, C, spzeros(1, 1))
+		return new(0, 0, C, spzeros(1, 1), COSMO.SparsityPattern[], [1:1])
 	end
 
 end
@@ -209,3 +235,5 @@ Workspace(args...) = Workspace{DefaultFloat}(args...)
 
 # Type alias facing the user
 const Model = Workspace;
+
+

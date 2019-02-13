@@ -5,86 +5,75 @@ ordering::Array{Int64} # σ(v) = i
 reverseOrder::Array{Int64} #σ^(-1)(i)
 
 # constructor for sparse input matrix
-function Graph(A::Union{SparseMatrixCSC{Int64,Int64},SparseMatrixCSC{Float64,Int64}})
-  if A != A'
-    error("Input has to be a symmetric matrix.")
-  end
-  N = size(A,1)
-  ordering = collect(1:1:N)
-  adjacencyList = [Int64[] for i=1:N]
-  for j = 1:N-1
-    for i=j+1:N
-      if A[i,j] != 0
-        push!(adjacencyList[i],j)
-        push!(adjacencyList[j],i)
-      end
-    end
-  end
-  g = new(adjacencyList,ordering,[])
-  # make sure that the graph is connected
-  connectGraph!(g)
-  # make graph chordal
-  mcsmSearch!(g)
-  return g
-end
+# function Graph(A::Union{SparseMatrixCSC{Int64,Int64},SparseMatrixCSC{Float64,Int64}})
+#   if A != A'
+#     error("Input has to be a symmetric matrix.")
+#   end
+#   N = size(A,1)
+#   ordering = collect(1:1:N)
+#   adjacencyList = [Int64[] for i=1:N]
+#   for j = 1:N-1
+#     for i=j+1:N
+#       if A[i,j] != 0
+#         push!(adjacencyList[i],j)
+#         push!(adjacencyList[j],i)
+#       end
+#     end
+#   end
+#   g = new(adjacencyList,ordering,[])
+#   # make sure that the graph is connected
+#   connectGraph!(g)
+#   # make graph chordal
+#   mcsmSearch!(g)
+#   return g
+# end
 
-# constructor for sparse input matrix
-function Graph(A::Union{SparseMatrixCSC{Int64,Int64},SparseMatrixCSC{Float64,Int64}},MCSM_FLAG::Bool)
-  if A != A'
-    error("Input has to be a symmetric matrix.")
-  end
-  N = size(A,1)
-  ordering = collect(1:1:N)
-  adjacencyList = [Int64[] for i=1:N]
-  for j = 1:N-1
-    for i=j+1:N
-      if A[i,j] != 0
-        push!(adjacencyList[i],j)
-        push!(adjacencyList[j],i)
-      end
-    end
-  end
-  g = new(adjacencyList,ordering,[])
-  mcsSearch!(g)
-  return g
-end
+# # constructor for sparse input matrix
+# function Graph(A::Union{SparseMatrixCSC{Int64,Int64},SparseMatrixCSC{Float64,Int64}},MCSM_FLAG::Bool)
+#   if A != A'
+#     error("Input has to be a symmetric matrix.")
+#   end
+#   N = size(A,1)
+#   ordering = collect(1:1:N)
+#   adjacencyList = [Int64[] for i=1:N]
+#   for j = 1:N-1
+#     for i=j+1:N
+#       if A[i,j] != 0
+#         push!(adjacencyList[i],j)
+#         push!(adjacencyList[j],i)
+#       end
+#     end
+#   end
+#   g = new(adjacencyList,ordering,[])
+#   mcsSearch!(g)
+#   return g
+# end
 
-function Graph(aL,o,ro)
-  return new(aL,o,ro)
+function Graph(aL, o, ro)
+  return new(aL, o, ro)
 end
 
 # constructor for list of zero or nonzero rows of vectorized matrix
-function Graph(rows::Array{Int64,1},N::Int64,NONZERO_FLAG::Bool)
+function Graph(rows::Array{Int64,1}, N::Int64, NONZERO_FLAG::Bool)
   # determine number of vertices of graph N
   ordering = collect(1:1:N)
-  adjacencyList = [Int64[] for i=1:N]
+  adjacency_list = [Int64[] for i=1:N]
 
-  # adjacencylist based on nonzero rows
-  if NONZERO_FLAG
-    for e in rows
-      fl, _rem = fldmod(e,N)
-      # determine row and col indices i,j
-      if _rem == 0
-        i = N
-        j = fl
-      else
-        i = _rem
-        j = fl+1
-      end
-      # println("e:$(e), fl: $(fl), rem: $(_rem) i:$(i), j:$(j)")
-      i != j && push!(adjacencyList[i],j)
-    end
-    # adjacencylist based on zero rows
-  else
-    error("Method not yet implemented")
+  row_val, col_val = row_ind_to_matrix_indices(rows, N)
+  F = QDLDL.qdldl(sparse(row_val, col_val, ones(length(row_val))), perm= nothing,logical = true)
+ # ordering = F.p
+  ordering = collect(1:N)
+  lower_triangle_to_adjacency_list!(adjacency_list, F.L)
 
-  end
-  g = new(adjacencyList,ordering,[])
   # make sure that the graph is connected
-  connectGraph!(g)
+  # FIXME: Relevant check?
+  # connectGraph!(g)
+  reverse_ordering = zeros(size(ordering, 1))
+  for i = 1:N
+    reverse_ordering[Int64(ordering[i])] = i
+  end
 
-  # make graph chordal
-  mcsmSearch!(g)
+  g = new(adjacency_list, ordering, reverse_ordering)
 
   return g
 end
@@ -390,4 +379,37 @@ for v in g.reverseOrder
 end
 return true
 end
+
+function row_ind_to_matrix_indices(rows::Array{Int64,1}, N::Int64)
+  row_val = zeros(Int64, length(rows))
+  col_val = zeros(Int64, length(rows))
+  for (ind, r) in enumerate(rows)
+        _rem = mod(r, N)
+        fl = fld(r, N)
+        if _rem == 0
+          row_val[ind] = N
+          col_val[ind] = fl
+        else
+          row_val[ind] = _rem
+          col_val[ind] = fl + 1
+         end
+  end
+  return row_val, col_val
+end
+
+
+function lower_triangle_to_adjacency_list!(alist::Array{Array{Int64,1},1}, L::SparseMatrixCSC{Float64, Int64})
+  N = length(alist)
+  j = 1
+  for (ind, r) in enumerate(L.rowval)
+    i = r
+    if j != N && !(ind < L.colptr[j+1])
+      j += 1
+    end
+    push!(alist[i], j)
+    push!(alist[j], i)
+ end
+
+end
+
 

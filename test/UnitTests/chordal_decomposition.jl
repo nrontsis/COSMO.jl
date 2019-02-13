@@ -26,17 +26,15 @@ A = data["A"];
 b = data["b"];
 # # solve problem with sparsity exploitation
 model = COSMO.Model()
-settings_decomp = COSMO.Settings(decompose = true, obj_true = obj_true)
+settings_decomp = COSMO.Settings(decompose = true, obj_true = obj_true, verbose_timing = true)
 assemble!(model, P, q, [cs], settings_decomp);
 res_decomp = COSMO.optimize!(model);
 
 
-
-
 #  compare results
 @testset "Chordal Decomposition" begin
-  @test abs(res_decomp.objVal - res.objVal) < 1e-3
-  @test abs(res_decomp.objVal - obj_true) < 1e-3
+  @test abs(res_decomp.obj_val - res.obj_val) < 1e-3
+  @test abs(res_decomp.obj_val - obj_true) < 1e-3
   @test norm(res_decomp.x - res.x,Inf) < 1e-3
 end
 nothing
