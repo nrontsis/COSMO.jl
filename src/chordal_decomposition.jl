@@ -1,8 +1,3 @@
-
-
-# ---------------------------
-# FUNCTIONS
-# ---------------------------
 function _contains(convex_sets::COSMO.CompositeConvexSet, t::Type{<:COSMO.AbstractConvexCone})
   for set in convex_sets.sets
     if typeof(set) == t
@@ -11,20 +6,6 @@ function _contains(convex_sets::COSMO.CompositeConvexSet, t::Type{<:COSMO.Abstra
   end
   return false
 end
-
-function num_ssets(convex_sets::Array{CompositeConvexSet}, t::Type{<:CompositeConvexSet})
-  number = 0
-  for set in convex_sets
-    typeof(set) == t && (number += 1)
-  end
-  return number
-end
-
-# function shift_indices!(convex_sets::Array{CompositeConvexSet}, shift::Int64)
-#   for set in convex_sets
-#       set.indices = (set.indices.start + shift):(set.indices.stop + shift)
-#   end
-# end
 
 function chordal_decomposition!(ws::COSMO.Workspace)
   ws.ci = ChordalInfo{Float64}(ws.p)
@@ -58,16 +39,6 @@ function find_sparsity_patterns!(ws)
   end
 end
 
-# find the zero rows of a sparse matrix a
-function zero_rows(a::SparseMatrixCSC, DROP_ZEROS_FLAG::Bool)
-    DROP_ZEROS_FLAG && dropzeros!(a)
-    passive = trues(a.m)
-    for r in a.rowval
-        passive[r] = false
-    end
-    return findall(passive)
-end
-
 function nz_rows(a::SparseMatrixCSC, ind::UnitRange{Int64}, DROP_ZEROS_FLAG::Bool)
     DROP_ZEROS_FLAG && dropzeros!(a)
     active = falses(length(ind))
@@ -92,21 +63,6 @@ function find_aggregate_sparsity(A, b, ind)
   bInd = findall(x -> x != 0, view(b, ind))
   commonNZeros = union(AInd, bInd)
   return commonNZeros
-end
-
-function find_aggregate_sparsity(Asub, bsub)
-  m,n = size(Asub)
-  AInd = zero_rows(Asub, false)
-  commonZeros = AInd[find( x -> x == 0, b[AInd])]
-  mSize = Int(sqrt(m))
-  csp = spzeros(Int64, mSize, mSize)
-  csp[:,:] = 1
-
-  for ind in commonZeros
-    i, j = vec_to_mat_ind(ind, mSize)
-    csp[i, j] = 0
-  end
-  return csp
 end
 
 function vec_to_mat_ind(ind::Int64, n::Int64)
