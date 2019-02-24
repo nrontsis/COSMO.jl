@@ -111,6 +111,10 @@ end
 # ----------------------------------------------------
 # Positive Semidefinite Cone
 # ----------------------------------------------------
+# abstract type AbstractPsdCone{T} <: AbstractConvexCone{T}
+# abstract type AbstractPsdConeTriangle{T} <: AbstractConvexCone{T}
+
+
 struct PsdCone{T} <: AbstractConvexCone{T}
 	dim::Int
 	sqrt_dim::Int
@@ -168,7 +172,6 @@ end
 # ----------------------------------------------------
 # Positive Semidefinite Cone (Triangle)
 # ----------------------------------------------------
-
 # Psd cone given by upper-triangular entries of matrix
 struct PsdConeTriangle{T} <: AbstractConvexCone{T}
     dim::Int #dimension of vector
@@ -190,7 +193,7 @@ function project!(x::AbstractArray, cone::PsdConeTriangle{T}) where{T}
     if length(x) == 1
         x = max.(x,zero(T))
     else
-        populate_upper_triangle!(cone.X, x, 1 / sqrt(2))
+        populate_upper_triangle!(cone.X, x, 1. / sqrt(2))
         _project!(cone.X)
         extract_upper_triangle!(cone.X, x, sqrt(2) )
     end
