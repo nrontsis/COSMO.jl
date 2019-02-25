@@ -15,6 +15,19 @@ end
 ResultTimes{T}() where{T} = ResultTimes{T}(0., 0., 0., 0., 0., 0., 0.)
 ResultTimes(T::Type = DefaultFloat) = ResultTimes{T}()
 
+function Base.show(io::IO, obj::ResultTimes)
+  obj.iter_time != 0 ? verbose = true : verbose = false
+  print(io,"Solver time:\t$(round.(obj.solver_time, digits = 4))s ($(round.(obj.solver_time * 1000, digits = 2))ms)\n",
+"Setup time:\t$(round.(obj.setup_time, digits = 4))s ($(round.(obj.setup_time * 1000, digits = 2))ms)\n",
+"Proj time:\t$(round.(obj.proj_time, digits = 4))s ($(round.(obj.proj_time * 1000, digits = 2))ms)\n")
+  if verbose
+    print(io,"Iter time:\t$(round.(obj.iter_time, digits = 4))s ($(round.(obj.iter_time * 1000, digits = 2))ms)\n",
+    "Graph time:\t$(round.(obj.graph_time, digits = 4))s ($(round.(obj.graph_time * 1000, digits = 2))ms)\n",
+    "Factor time:\t$(round.(obj.factor_time, digits = 4))s ($(round.(obj.factor_time * 1000, digits = 2))ms)\n",
+    "Post time:\t$(round.(obj.post_time, digits = 4))s ($(round.(obj.post_time * 1000, digits = 2))ms)\n")
+  end
+end
+
 struct ResultInfo{T <: AbstractFloat}
 	r_prim::T
 	r_dual::T
@@ -60,8 +73,11 @@ struct Result{T <: AbstractFloat}
 end
 
 function Base.show(io::IO, obj::Result)
-	print(io,">>> COSMO - Results\nStatus: $(obj.status)\nIterations: $(obj.iter)\nOptimal Objective: $(round.(obj.obj_val, digits = 2))\nRuntime: $(round.(obj.times.solver_time * 1000, digits = 2))ms\nSetup Time: $(round.(obj.times.setup_time * 1000, digits = 2))ms\n")
-	obj.times.iter_time != 0 && print("Avg Iter Time: $(round.((obj.times.iter_time / obj.iter) * 1000, digits = 4))ms")
+	if obj.times.iter_time == 0
+  print(io,">>> COSMO - Results\nStatus: $(obj.status)\nIterations: $(obj.iter)\nOptimal Objective: $(round.(obj.obj_val, digits = 2))\nRuntime: $(round.(obj.times.solver_time * 1000, digits = 2))ms\nSetup Time: $(round.(obj.times.setup_time * 1000, digits = 2))ms\n")
+	else
+    print(io,">>> COSMO - Results\nStatus: $(obj.status)\nIterations: $(obj.iter)\nOptimal Objective: $(round.(obj.obj_val, digits = 2))\nRuntime: $(round.(obj.times.solver_time * 1000, digits = 2))ms\nSetup Time: $(round.(obj.times.setup_time * 1000, digits = 2))ms\nAvg Iter Time: $(round.((obj.times.iter_time / obj.iter) * 1000, digits = 4))ms\n")
+  end
 end
 
 struct Info{T <: AbstractFloat}
@@ -141,16 +157,14 @@ mutable struct SparsityPattern
   reverse_ordering::Array{Int64}
 
   # constructor for sparsity pattern
-  function SparsityPattern(rows::Array{Int64,1}, N::Int64, C::AbstractConvexSet)
-    g = Graph(rows, N, C)
-    ldlt_p = deepcopy(g.ordering)
-    g.ordering = collect(1:N)
-    reverse_ordering = zeros(size(ldlt_p, 1))
+  function SparsityPattern(L, N::Int64, ordering)
+
+    reverse_ordering = zeros(length(ordering))
     for i = 1:N
-      reverse_ordering[Int64(ldlt_p[i])] = i
+      reverse_ordering[ordering[i]] = i
     end
-    sntree = SuperNodeTree(g)
-    return new(sntree, ldlt_p, reverse_ordering)
+    sntree = SuperNodeTree(L)
+    return new(sntree, ordering, reverse_ordering)
   end
 end
 
@@ -166,17 +180,17 @@ mutable struct ChordalInfo{T <: Real}
   sp_arr::Array{COSMO.SparsityPattern}
   psd_cones_ind::Array{Int64} # stores the position of decomposable psd cones in the composite convex set
   num_decomp::Int64 #number of decomposable cones
+  L::SparseMatrixCSC{T} #pre allocate memory for QDLD - Lt
 
   function ChordalInfo{T}(problem::COSMO.ProblemData{T}) where {T}
     originalM = problem.model_size[1]
     originalN = problem.model_size[2]
     originalC = deepcopy(problem.C)
     num_psd_cones = length(findall(x -> typeof(x) <: Union{PsdConeTriangle{Float64}, PsdCone{Float64}} , problem.C.sets))
-
     # allocate sparsity pattern for each cone
     sp_arr = Array{COSMO.SparsityPattern}(undef, num_psd_cones)
 
-    return new(originalM, originalN, originalC, spzeros(1, 1), sp_arr, Int64[], 0)
+    return new(originalM, originalN, originalC, spzeros(1, 1), sp_arr, Int64[], 0, spzeros(1, 1))
   end
 
 	function ChordalInfo{T}() where{T}
