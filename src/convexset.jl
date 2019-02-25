@@ -33,6 +33,11 @@ function rectify_scaling!(E,work,set::ZeroSet{T}) where{T}
 	return false
 end
 
+function allocate_memory!(cone::AbstractConvexSet{T}) where {T}
+  return nothing
+end
+
+
 # ----------------------------------------------------
 # Nonnegative orthant
 # ----------------------------------------------------
@@ -187,7 +192,7 @@ end
 # Positive Semidefinite Cone (Triangle)
 # ----------------------------------------------------
 # Psd cone given by upper-triangular entries of matrix
-struct PsdConeTriangle{T} <: AbstractConvexCone{T}
+mutable struct PsdConeTriangle{T} <: AbstractConvexCone{T}
     dim::Int #dimension of vector
     sqrt_dim::Int # side length of matrix
     X::Array{T,2}
@@ -196,12 +201,12 @@ struct PsdConeTriangle{T} <: AbstractConvexCone{T}
         dim >= 0       || throw(DomainError(dim, "dimension must be nonnegative"))
         side_dimension = Int(sqrt(0.25 + 2 * dim) - 0.5);
 
-        new(dim, side_dimension, zeros(side_dimension, side_dimension))
+        new(dim, side_dimension, zeros(1, 1))
     end
 end
 PsdConeTriangle(dim) = PsdConeTriangle{DefaultFloat}(dim)
 
-struct DensePsdConeTriangle{T} <: AbstractConvexCone{T}
+mutable struct DensePsdConeTriangle{T} <: AbstractConvexCone{T}
     dim::Int #dimension of vector
     sqrt_dim::Int # side length of matrix
     X::Array{T,2}
@@ -210,7 +215,7 @@ struct DensePsdConeTriangle{T} <: AbstractConvexCone{T}
         dim >= 0       || throw(DomainError(dim, "dimension must be nonnegative"))
         side_dimension = Int(sqrt(0.25 + 2 * dim) - 0.5);
 
-        new(dim, side_dimension, zeros(side_dimension, side_dimension))
+        new(dim, side_dimension, zeros(1, 1))
     end
 end
 DensePsdConeTriangle(dim) = DensePsdConeTriangle{DefaultFloat}(dim)
@@ -248,6 +253,10 @@ end
 
 function rectify_scaling!(E, work, set::Union{PsdConeTriangle{T}, DensePsdConeTriangle{T}}) where{T}
     return rectify_scalar_scaling!(E,work)
+end
+
+function allocate_memory!(cone::Union{PsdConeTriangle{T}, DensePsdConeTriangle{T}}) where {T}
+  cone.X = zeros(cone.sqrt_dim, cone.sqrt_dim)
 end
 
 function populate_upper_triangle!(A::AbstractMatrix, x::AbstractVector, scaling_factor::Float64)
