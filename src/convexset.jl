@@ -155,7 +155,8 @@ function project!(x::AbstractArray, cone::Union{PsdCone{T}, DensePsdCone{T}}) wh
     else
         # symmetrized square view of x
         X    = reshape(x, n, n)
-        symmetrize!(X)
+        #symmetrize!(X)
+        @. X = 0.5 * (X + X')
         _project!(X)
     end
     return nothing
