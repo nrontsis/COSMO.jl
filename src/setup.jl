@@ -19,10 +19,9 @@ end
 
 
 function _make_kkt_solver(ws)
-
 	ws.kkt_solver = ws.settings.kkt_solver_type(
-						SparseMatrixCSC(ws.p.P),
-						SparseMatrixCSC(ws.p.A),
+						ws.p.P,
+						ws.p.A,
 						ws.settings.sigma,
 						ws.ρvec)
 

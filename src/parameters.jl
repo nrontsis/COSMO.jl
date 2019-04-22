@@ -11,7 +11,7 @@ function set_rho_vec!(ws::COSMO.Workspace)
 	if length(set_ind) > 0
 		row_ind = COSMO.get_set_indices(ws.p.C.sets)
 		for (i, rows) in enumerate(row_ind[set_ind])
-			ws.ρvec[rows] *= 1e3
+			ws.ρvec[rows] *= 10
 		end
 	end
 	push!(ws.Info.rho_updates, ws.ρ)
@@ -49,7 +49,7 @@ function update_rho_vec!(new_rho::Float64, ws::COSMO.Workspace)
 	if length(set_ind) > 0
 		row_ind = COSMO.get_set_indices(ws.p.C.sets)
 		for (i, rows) in enumerate(row_ind[set_ind])
-			ws.ρvec[rows] *= 1e3
+			ws.ρvec[rows] *= 10
 		end
 	end
 

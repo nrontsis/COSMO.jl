@@ -115,6 +115,7 @@ function optimize!(ws::COSMO.Workspace)
 			cost = ws.sm.cinv[] * (1/2 * ws.vars.x' * ws.p.P * ws.vars.x + ws.p.q' * ws.vars.x)[1]
 
 			if abs(cost) > 1e20
+				@assert false "Excessive cost"
 				status = :Unsolved
 				break
 			end

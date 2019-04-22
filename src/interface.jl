@@ -156,11 +156,13 @@ function set!(model::COSMO.Model,
 	check_dimensions(P, q, A, b)
 
 	# convert inputs and copy them
+	#=
 	P_c = convert_copy(P, SparseMatrixCSC{Float64, Int64})
 	A_c = convert_copy(A, SparseMatrixCSC{Float64, Int64})
 	q_c = convert_copy(q, Vector{Float64})
 	b_c = convert_copy(b, Vector{Float64})
-
+	=#
+	(P_c, A_c, q_c, b_c) = (P, A, q, b)
 
 	n = length(q)
 	m = length(b)
@@ -201,6 +203,7 @@ end
 # merge zeros sets and nonnegative sets
 function merge_constraints!(constraints::Array{COSMO.Constraint{T}}) where{T}
 	# handle zeros sets
+	return
 	ind = findall(set->typeof(set) == ZeroSet{T}, map(x -> x.convex_set, constraints))
 	if length(ind) > 1
 		M = merge_zeros(constraints[ind])
@@ -267,6 +270,9 @@ end
 
 # transform A*x + b in {0}, to A*x + s == b, s in {0}
 function process_constraint!(p::COSMO.ProblemData, row_num::Int64, A::Union{AbstractVector{<:Real},AbstractMatrix{<:Real}}, b::AbstractVector{<:Real}, C::AbstractConvexSet, n::Int64)
+	p.A = A
+	p.b = b
+	return;
 	check_A_dim(A, n)
 	s = row_num
 	e = row_num + C.dim - 1
